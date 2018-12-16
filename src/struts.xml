@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE struts PUBLIC "-//Apache Software Foundation//DTD Struts Configuration 2.1//EN" "http://struts.apache.org/dtds/struts-2.1.dtd">
+<struts>
+    <constant name="struts.enable.DynamicMethodInvocation" value="true" />
+    <constant name="struts.devMode" value="true" />   
+    <constant name="struts.configuration.xml.reload" value="true" />
+    <constant name="struts.action.excludePattern" value="/dwr/.*,/dwr/test/.*,/servlet/.*" />
+    <constant name="struts.ognl.allowStaticMethodAccess" value="true"/>
+    
+    <!--  
+    Struts2默认情况下最多只能上传2M的文件，超过2M就会出现异常,可重新配置新值 
+	-->
+	<constant name="struts.multipart.maxSize" value="500000000" /> 
+       
+    <!-- 本地化  -->
+    <constant name="struts.i18n.encoding" value="UTF-8"/>
+    <constant name="struts.custom.i18n.resources" value="message"/>
+    
+    <package name="default" namespace="/" extends="struts-default">
+     <!-- 拦截器组,包的开头  -->
+	    <interceptors>
+         <interceptor name="basic" class="com.interceptor.BasicInterceptor"></interceptor>
+   
+         <interceptor-stack name="basicStack">
+           <interceptor-ref name="basic"></interceptor-ref>
+           <!-- 系统拦截器，用于判断重复提交 -->
+           <interceptor-ref name="token"></interceptor-ref>
+           <!-- 默认系统拦截器 ,不加注入就会有问题 -->
+           <interceptor-ref name="defaultStack"></interceptor-ref>
+         </interceptor-stack>
+         
+         <interceptor name="control" class="com.interceptor.ConInterceptor"></interceptor>
+         
+         <interceptor name="method" class="com.interceptor.MethodInterceptor">
+           <param name="includeMethods">execute</param>
+           <param name="excludeMethods">insertemp,selectemp</param>
+         </interceptor>
+         
+        </interceptors>
+    
+    <default-action-ref name="index" />
+    
+    <global-results>
+          <!-- 重复提交的错误页面 -->
+          <result name="invalid.token">/repeat.jsp</result>
+          <result name="login" type="redirect">/login.jsp</result> 
+    </global-results>
+    
+    <action name="index" class="indexAction">
+        <interceptor-ref name="control"></interceptor-ref>
+        <interceptor-ref name="defaultStack"></interceptor-ref>
+        <result name="input">/index.jsp</result>
+        <result name="success">/success.jsp</result>
+    </action>
+   
+        <action name="demo" class="demoAction">
+            <interceptor-ref name="method"></interceptor-ref>
+            <interceptor-ref name="defaultStack"></interceptor-ref>
+            <result name="success">/success.jsp</result>
+        </action> 
+        
+        <action name="login" class="loginAction">
+	        <interceptor-ref name="basicStack"></interceptor-ref>
+	        <result name="input">/success.jsp</result>
+	        <result name="error">/error.jsp</result>
+        </action>
+        
+        <action name="register" class="registerAction">
+       	 <result name="success">/success.jsp</result>
+       	 <!-- 出错误后跳转的路径  -->
+       	 <result name="input">/register.jsp</result>
+        </action>
+        
+       <!-- 不能和工程中的文件夹同名 -->
+       <action name="uploadfile" class="uploadAction">
+          <!-- 系统的拦截器  -->
+          <interceptor-ref name="fileUpload">
+			<param name="allowedTypes">
+			image/bmp,image/png,image/gif,image/jpeg,image/jpg,image/x-png,image/pjpeg
+			</param>
+			<param name="maximumSize">10485760</param>
+		  </interceptor-ref>
+		  <interceptor-ref name="token"/>
+          <interceptor-ref name="defaultStack"/>
+          <param name="savePath">C:\\Program Files\\apache-tomcat-7.0.42\\webapps\\image\\pic</param>
+          <param name="webPath">http://localhost:8090/image/pic/</param>
+          <result name="success">/success.jsp</result>
+          <result name="input">/error.jsp</result>
+       </action>
+       
+       <action name="download" class="downloadAction">
+           <param name="inputPath">/upload</param>
+		   <result name="success" type="stream">
+			   	<param name="contentType">application/octet-stream</param>
+			   	<param name="inputName">inputStream</param>
+			   	<param name="contentDisposition">attachment;filename="${fileName}"</param>
+			   	<param name="bufferSize">4096</param>
+			</result>
+       </action>
+        
+    </package>
+    
+    <package name="test" namespace="/test" extends="struts-default">
+    
+	    <action name="test" class="testAction">
+	        <result name="success">success.jsp</result>
+	        <result name="show" type="redirectAction">test<![CDATA[!show]]></result>
+	        <result name="index" type="redirectAction">
+	          <param name="namespace">/</param>
+	          <param name="actionName">index</param>
+	        </result>
+	        <result name="scope">/scope.jsp</result>
+	        <result name="sbq">/testsbq.jsp</result>
+	    </action>
+    
+    </package>
+   
+</struts>    

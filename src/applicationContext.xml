@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans
+	xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop"  
+    xmlns:context="http://www.springframework.org/schema/context"  
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	http://www.springframework.org/schema/beans/spring-beans-4.1.xsd 
+	http://www.springframework.org/schema/aop 
+	http://www.springframework.org/schema/aop/spring-aop-4.1.xsd  
+    http://www.springframework.org/schema/context 
+    http://www.springframework.org/schema/context/spring-context-4.1.xsd
+	http://www.springframework.org/schema/tx 
+	http://www.springframework.org/schema/tx/spring-tx-4.1.xsd" 
+	xmlns:tx="http://www.springframework.org/schema/tx">
+
+    <context:component-scan base-package="com"/>    
+    <aop:aspectj-autoproxy/>
+    
+	<bean id="dataSource"
+		class="org.apache.commons.dbcp.BasicDataSource">
+		<property name="driverClassName" value="oracle.jdbc.driver.OracleDriver" />
+		<property name="url"
+			value="jdbc:oracle:thin:@localhost:1521:orcl">
+		</property>
+		<property name="username" value="scott"></property>
+		<property name="password" value="scott"></property>
+	</bean>
+	<bean id="sessionFactory"
+		class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+		<property name="dataSource">
+			<ref bean="dataSource" />
+		</property>
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.dialect">
+					org.hibernate.dialect.Oracle9Dialect
+				</prop>
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+				<!-- org.springframework.orm.hibernate4.SpringSessionContext
+				<prop key="hibernate.current_session_context_class">thread</prop>
+				-->
+				<prop key="hibernate.current_session_context_class">
+				 org.springframework.orm.hibernate4.SpringSessionContext
+				</prop>
+				<!-- 和javaEE6冲突，解决beanValidate异常 -->
+				<prop key="javax.persistence.validation.mode">none</prop>
+				<!-- 2级缓存配置 -->
+				<prop key="hibernate.cache.use_second_level_cache">true</prop>  
+        	    <prop key="hibernate.cache.region.factory_class">org.hibernate.cache.ehcache.EhCacheRegionFactory</prop>  
+        	    <prop key="hibernate.cache.provider_configuration_file_resource_path">ehcache.xml</prop>  
+			    <!-- 查询缓存:createQuery("from Husband").setCacheable(true).list() -->
+			    <prop key="hibernate.cache.use_query_cache">true</prop>  
+			</props>
+		</property>
+		<property name="mappingResources">
+			<list>
+				<!--  
+				<value>com/entity/Pet.hbm.xml</value>
+				<value>com/entity/Petstore.hbm.xml</value>
+				-->
+				<value>com/entity/Dept.hbm.xml</value>
+				<value>com/entity/Emp.hbm.xml</value>
+				<value>com/entity/Demo.hbm.xml</value>
+				<value>com/entity/Car.hbm.xml</value>
+				<value>com/entity/Carport.hbm.xml</value>
+				<value>com/entity/Project.hbm.xml</value>
+				<value>com/entity/Employee.hbm.xml</value>
+			</list>
+		</property></bean>
+
+	<bean id="txManager"
+		class="org.springframework.orm.hibernate4.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory" />
+	</bean>
+
+	<!-- 事务属性的配置 -->
+    <tx:advice id="txAdvice" transaction-manager="txManager">        
+        <tx:attributes>            
+            <tx:method name="select*" read-only="true"/>            
+            <tx:method name="insert*" rollback-for="java.sql.SQLException"/>
+            <tx:method name="update*"/>
+            <tx:method name="delete*"/>
+            <tx:method name="test*"/>
+        </tx:attributes>
+    </tx:advice>
+    
+    <aop:config>
+        <aop:pointcut id="hehe" expression="execution(public * com.service..*.*(..))"/>
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="hehe"/>
+    </aop:config>
+    
+    
+    <!-- 启动触发器的配置开始 -->
+    <bean name="startQuertz" lazy-init="false" autowire="no"
+        class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+        <property name="triggers">
+            <list>
+                <ref bean="myJobTrigger" />
+            </list>
+        </property>
+    </bean>
+    <!-- 启动触发器的配置结束 -->
+ 
+    <!-- quartz-2.x的配置 -->
+    <!-- 
+    (*)星号：可以理解为每的意思，每秒，每分，每天，每月，每年...
+	(?)问号：问号只能出现在日期和星期这两个位置，表示这个位置的值不确定，每天3点执行，所以第六位星期的位置，我们是不需要关注的，就是不确定的值。同时：日期和星期是两个相互排斥的元素，通过问号来表明不指定值。比如，1月10日，比如是星期1，如果在星期的位置是另指定星期二，就前后冲突矛盾了。
+	(-)减号：表达一个范围，如在小时字段中使用“10-12”，则表示从10到12点，即10,11,12
+	(,)逗号：表达一个列表值，如在星期字段中使用“1,2,4”，则表示星期一，星期二，星期四
+	(/)斜杠：如：x/y，x是开始值，y是步长，比如在第一位（秒） 0/15就是，从0秒开始，每15秒，最后就是0，15，30，45，60    另：*/y，等同于0/y
+	0 0 1 * * ?		每天1点触发 
+	0 0 12 * * ?	每天12点触发 
+	0 15 10 ? * *	每天10点15分触发 
+	0 15 10 * * ?	每天10点15分触发 
+	0 15 10 * * ? *	每天10点15分触发
+	0 15 10 L * ?	每月最后一天的10点15分触发 
+	0 15 10 15 * ?	每月15号上午10点15分触发 
+	0 0-5 14 * * ?	每天下午的 2点到2点05分每分触发 
+	0 0 12 1/5 * ?	每月的第一个中午开始每隔5天触发一次 
+	0 0/2 * * * ?	每两分钟触发一次
+    0/2 * * * * ?	每两秒钟触发一次
+     -->
+    <bean id="myJobTrigger"
+        class="org.springframework.scheduling.quartz.CronTriggerFactoryBean">
+        <property name="jobDetail">
+            <ref bean="myJobDetail" />
+        </property>
+        <property name="cronExpression">
+            <!--middle night 24. do it  -->
+            <value>0/2 * * * * ?</value>
+        </property>
+    </bean>
+    <!-- 调度的配置结束 -->
+ 
+    <!-- job的配置开始 -->
+    <bean id="myJobDetail"
+        class="org.springframework.scheduling.quartz.MethodInvokingJobDetailFactoryBean">
+        <property name="targetObject">
+            <ref bean="myJob" />
+        </property>
+        <property name="targetMethod">
+            <value>work</value>
+        </property>
+    </bean>
+    <!-- job的配置结束 -->
+ 
+    <!-- 工作的bean -->
+    <bean id="myJob" class=" com.action.MyJob" />
+    
+    
+</beans>
